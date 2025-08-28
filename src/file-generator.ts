@@ -165,7 +165,7 @@ tools: ${agent.tools ? agent.tools.join(', ') : 'Read, Write, Edit, Bash'}
 
     // Generate project-specific sections
     const newSections = manager.generateProjectSpecificContent(
-      recommendations.projectAnalysis,
+      recommendations.projectAnalysis || { projectType: 'unknown', complexity: 'medium' },
       userProfile,
       projectSpecificContent
     );
@@ -177,7 +177,7 @@ tools: ${agent.tools ? agent.tools.join(', ') : 'Read, Write, Edit, Bash'}
     manager.mergeWithExisting(newSections);
 
     // Save the result
-    await manager.save(userProfile, recommendations.projectAnalysis);
+    await manager.save(userProfile, recommendations.projectAnalysis || { projectType: 'unknown', complexity: 'medium' });
   }
 
   private detectFrameworks(codebaseInfo: any): string[] {

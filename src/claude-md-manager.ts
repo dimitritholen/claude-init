@@ -345,7 +345,7 @@ export class ClaudeMdManager {
     if (!hasMainHeader) {
       content += `# Claude Code Configuration\n\n`;
       content += `Generated for: ${userProfile.role} (${userProfile.experience} level)\n`;
-      content += `Project: ${projectAnalysis.projectType || 'detected project'} (${projectAnalysis.complexity} complexity)\n\n`;
+      content += `Project: ${projectAnalysis?.projectType || 'detected project'} (${projectAnalysis?.complexity || 'medium'} complexity)\n\n`;
     }
 
     // Group sections by level and add them in logical order
