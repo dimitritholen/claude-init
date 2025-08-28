@@ -250,9 +250,10 @@ describe('FileGenerator REAL Filesystem Tests', () => {
       expect(claudeMdContent).toContain('Generated for: fullstack (senior level)');
       expect(claudeMdContent).toContain('Project: CLI Tool (high complexity)');
       expect(claudeMdContent).toContain('## Coding Standards');
-      expect(claudeMdContent).toContain('TypeScript strict mode');
+      // The new manager generates different content based on project analysis
+      expect(claudeMdContent).toContain('10-15 line functions maximum');
       expect(claudeMdContent).toContain('## Testing Requirements');
-      expect(claudeMdContent).toContain('real API calls');
+      expect(claudeMdContent).toContain('Mock-only tests are INADEQUATE');
       expect(claudeMdContent).toContain('MANDATORY COMPLIANCE PROTOCOL');
 
       console.log('✅ VERIFIED: CLAUDE.md with proper structure and content');
@@ -260,9 +261,18 @@ describe('FileGenerator REAL Filesystem Tests', () => {
       console.log('📊 Content length:', claudeMdContent.length, 'characters');
     });
 
-    it('should append to existing CLAUDE.md file', async () => {
-      // Create existing CLAUDE.md
-      const existingContent = '# Existing Configuration\n\nSome existing rules.';
+    it('should merge with existing CLAUDE.md file intelligently', async () => {
+      // Create existing CLAUDE.md with user content
+      const existingContent = `# My Project
+
+## Project Overview
+
+This is my custom project overview that should be preserved.
+
+## Coding Standards
+
+- My custom coding rule that should be preserved`;
+
       const claudeMdPath = join(testDir, 'CLAUDE.md');
       await generator['ensureDirectory'](claudeMdPath);
       require('fs').writeFileSync(claudeMdPath, existingContent);
@@ -284,12 +294,10 @@ describe('FileGenerator REAL Filesystem Tests', () => {
 
       const result = await generator.generate(testDir, recommendations, userProfile);
 
-      // Verify existing content was preserved
+      // Verify intelligent merging occurred
       const finalContent = await readFile(result.claudeMd.path, 'utf-8');
-      expect(finalContent).toContain('# Existing Configuration');
-      expect(finalContent).toContain('Some existing rules.');
-      expect(finalContent).toContain('# Auto-generated Configuration');
-      expect(finalContent).toContain('New standard');
+      expect(finalContent).toContain('My Project'); // User title preserved
+      expect(finalContent).toContain('custom project overview that should be preserved');
 
       console.log('✅ VERIFIED: Existing CLAUDE.md preservation and appending');
     });

@@ -61,6 +61,7 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 200));
 
     let recommendations: any;
+    let codebaseInfo: any = null;
     let projectPath = userProfile.projectPath || process.cwd();
 
     if (userProfile.projectType === 'new') {
@@ -113,7 +114,7 @@ async function main() {
       }
     } else {
       // Analyze existing codebase
-      const codebaseInfo = await analyzer.analyze(projectPath);
+      codebaseInfo = await analyzer.analyze(projectPath);
       const formattedInfo = analyzer.formatForLLM(codebaseInfo);
       progress.complete('analyze-codebase');
       
@@ -176,7 +177,7 @@ async function main() {
     await new Promise(resolve => setTimeout(resolve, 500));
     progress.complete('create-hooks');
     
-    const generatedFiles = await generator.generate(projectPath, recommendations, userProfile);
+    const generatedFiles = await generator.generate(projectPath, recommendations, userProfile, codebaseInfo);
     progress.complete('create-rules');
     progress.stopAnimation(); // Ensure animation is stopped
 
