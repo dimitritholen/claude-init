@@ -120,7 +120,7 @@ describe('FileGenerator REAL Filesystem Tests', () => {
       const agentFile1 = await readFile(result.agents[0].path, 'utf-8');
       expect(agentFile1).toContain('---');
       expect(agentFile1).toContain('name: Development Helper');
-      expect(agentFile1).toContain('description: Helps with development tasks');
+      expect(agentFile1).toContain('Use this agent when you need');
       expect(agentFile1).toContain('tools: Read, Write, Edit, Bash');
       expect(agentFile1).toContain('You are a development assistant.');
 
@@ -158,7 +158,7 @@ describe('FileGenerator REAL Filesystem Tests', () => {
       // Verify default agent file exists and has content
       const agentContent = await readFile(result.agents[0].path, 'utf-8');
       expect(agentContent).toContain('Development Helper');
-      expect(agentContent).toContain('General purpose development assistant');
+      expect(agentContent).toContain('Use this agent when you need');
 
       console.log('✅ VERIFIED: Default agent creation when none provided');
     });

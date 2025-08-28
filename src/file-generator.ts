@@ -18,12 +18,76 @@ export class FileGenerator {
     }
   }
 
-  private generateAgentFile(agent: any): string {
-    // Ensure description ends with "Use when" clause
-    let description = agent.description;
-    if (!description.includes('Use ') && !description.includes('use ')) {
-      description = `${description}. Use for related tasks`;
+  private enhanceAgentDescription(agent: any): string {
+    let description = agent.description || '';
+    
+    // If description is already detailed (>100 chars) and follows pattern, use as-is
+    if (description.length > 100 && description.includes('Use this agent when')) {
+      return description;
     }
+    
+    // If description is too short or doesn't follow pattern, enhance it
+    if (description.length < 100 || (!description.includes('Use ') && !description.includes('use '))) {
+      const agentName = agent.name || 'specialist';
+      const tools = agent.tools || ['Read', 'Write', 'Edit', 'Bash'];
+      
+      // Generate enhanced description based on agent name and tools
+      const enhancedDescription = this.generateDetailedDescription(agentName, description, tools);
+      return enhancedDescription;
+    }
+    
+    return description;
+  }
+
+  private generateDetailedDescription(name: string, baseDescription: string, tools: string[]): string {
+    const nameLower = name.toLowerCase();
+    
+    // Create base capabilities from name and tools
+    let capabilities = '';
+    let scenarios = '';
+    let perfectFor = '';
+    
+    if (nameLower.includes('test')) {
+      capabilities = 'comprehensive testing strategies and implementation';
+      scenarios = 'writing unit tests, integration tests, performance benchmarks, or developing test automation frameworks';
+      perfectFor = 'TDD workflows, test coverage improvements, or when establishing testing best practices';
+    } else if (nameLower.includes('debug')) {
+      capabilities = 'systematic debugging and problem resolution';
+      scenarios = 'identifying code issues, analyzing error logs, troubleshooting application failures, or optimizing performance bottlenecks';
+      perfectFor = 'complex bug investigation, production issue resolution, or when systematic problem-solving approaches are needed';
+    } else if (nameLower.includes('architect') || nameLower.includes('design')) {
+      capabilities = 'strategic architectural guidance and design pattern recommendations';
+      scenarios = 'evaluating technical decisions, suggesting refactoring opportunities, designing system architecture, or ensuring code adheres to best practices';
+      perfectFor = 'architecture reviews, major feature planning, or when balancing immediate needs with future extensibility';
+    } else if (nameLower.includes('typescript') || nameLower.includes('ts')) {
+      capabilities = 'TypeScript development expertise with strict typing and modern patterns';
+      scenarios = 'implementing type-safe interfaces, configuring advanced TypeScript features, optimizing build processes, or migrating JavaScript to TypeScript';
+      perfectFor = 'type system design, complex generic implementations, or when building scalable TypeScript applications';
+    } else if (nameLower.includes('cli') || nameLower.includes('command')) {
+      capabilities = 'CLI development and terminal-based application design';
+      scenarios = 'building command-line interfaces, implementing argument parsing, designing user workflows, or creating developer tools';
+      perfectFor = 'CLI architecture decisions, user experience optimization, or when building developer productivity tools';
+    } else if (nameLower.includes('dev') || nameLower.includes('engineer') || nameLower.includes('code')) {
+      capabilities = 'comprehensive software engineering expertise for complex development tasks';
+      scenarios = 'analyzing requirements, designing system architecture, implementing robust solutions, or providing senior-level technical guidance';
+      perfectFor = 'complex feature development, technical decision-making, or when senior engineering perspective is needed';
+    } else {
+      // Generic enhancement based on base description
+      const cleanBase = baseDescription.replace(/\. Use.*$/, '').replace(/\.$/, '');
+      capabilities = cleanBase || 'specialized development assistance';
+      scenarios = 'implementing features, solving technical challenges, optimizing code, or providing expert guidance';
+      perfectFor = 'complex development tasks, technical problem-solving, or when specialized expertise is required';
+    }
+    
+    // Construct detailed description
+    const detailed = `Use this agent when you need ${capabilities}. This includes ${scenarios}, or when you need expert technical guidance. Perfect for ${perfectFor}, and excels at delivering high-quality, maintainable solutions.`;
+    
+    return detailed;
+  }
+
+  private generateAgentFile(agent: any): string {
+    // Enhance description to be detailed and follow proper patterns
+    const description = this.enhanceAgentDescription(agent);
     
     const yamlHeader = `---
 name: ${agent.name}

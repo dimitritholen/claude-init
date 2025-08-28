@@ -251,7 +251,11 @@ ${TESTING_STANDARDS}
 <requirements>
 1. **DETECT** project characteristics from the raw data (don't assume - analyze file extensions, dependencies, structure)
 
-2. **CREATE** agents that embed ALL compliance protocols:
+2. **CREATE** agents with DETAILED, MULTI-SENTENCE descriptions that embed ALL compliance protocols:
+   - **DESCRIPTION FORMAT**: Must start with "Use this agent when..." and include 2-4 sentences
+   - **INCLUDE SPECIFIC SCENARIOS**: List 3+ specific use cases or situations  
+   - **HIGHLIGHT CAPABILITIES**: What the agent excels at or specializes in
+   - **TARGET OUTCOMES**: Perfect for X, ideal when Y, essential for Z
    - Mandatory Chain of Thought requirements before any code
    - Anti-hallucination guards with forbidden phrases
    - YAGNI enforcement with continuous review checkpoints
@@ -284,6 +288,25 @@ ${TESTING_STANDARDS}
    - Lack of real testing must be addressed in generated rules
 </requirements>
 
+<agent_description_examples>
+❌ **BAD EXAMPLES** (too brief, vague):
+- "Testing specialist for code verification"
+- "CLI architecture expert. Use for related tasks"
+- "TypeScript developer with strict standards"
+
+✅ **GOOD EXAMPLES** (detailed, specific):
+- "Use this agent when you need comprehensive end-to-end tests using Playwright, automate browser-based testing scenarios, test user workflows across multiple browsers, or develop UI test strategies for web applications."
+- "Use this agent when you need comprehensive software engineering expertise for complex development tasks. This includes analyzing requirements, designing system architecture, implementing robust solutions, or when you need a senior-level perspective on technical decisions."
+- "Use this agent when you need strategic architectural guidance, design pattern recommendations, or holistic code reviews that consider long-term maintainability. This agent excels at evaluating technical decisions, suggesting refactoring opportunities, and ensuring code adheres to SOLID principles and best practices. Perfect for architecture reviews, major feature planning, or when you need to balance immediate implementation needs with future extensibility."
+
+**REQUIRED PATTERNS**:
+- Start with "Use this agent when..."
+- Include 2-4 sentences minimum
+- List 3+ specific scenarios or use cases  
+- Include "Perfect for...", "This agent excels at...", or "Essential when..." phrases
+- Be specific about capabilities and outcomes
+</agent_description_examples>
+
 <thinking>
 Before generating the configuration, I need to:
 1. **ANALYZE** the codebase data to understand project type and detect any testing inadequacies
@@ -309,7 +332,7 @@ Return ONLY valid JSON with this structure:
   "recommendedAgents": [
     {
       "name": "agent-name",
-      "description": "Brief description for YAML header",
+      "description": "Use this agent when you need [specific expertise] for [primary scenarios]. This includes [scenario 1], [scenario 2], and [scenario 3], or when you need [expert perspective]. Perfect for [ideal use case], essential when [situational trigger], and excels at [key strength].",
       "tools": ["Read", "Write", "Edit", "Bash"],
       "systemPrompt": "MUST include full mandatory compliance protocol with chain-of-thought, anti-hallucination guards, YAGNI enforcement, and verification standards"
     }
@@ -317,7 +340,7 @@ Return ONLY valid JSON with this structure:
   "recommendedCommands": [
     {
       "name": "command-name", 
-      "description": "Brief description",
+      "description": "Detailed command description explaining when and why to use this command",
       "argumentHint": "[optional arguments]",
       "allowedTools": ["Bash(git add:*)", "Write"],
       "prompt": "MUST include mandatory compliance protocol and verification requirements with $ARGUMENTS placeholders"
@@ -390,7 +413,12 @@ ${TESTING_STANDARDS}
 <requirements>
 1. **RECOMMEND** a modern, appropriate tech stack for this project idea
 2. **CONSIDER** the user's role and experience level when suggesting complexity
-3. **CREATE** agents with embedded compliance protocols that prevent over-engineering
+3. **CREATE** agents with DETAILED, MULTI-SENTENCE descriptions and embedded compliance protocols:
+   - **DESCRIPTION FORMAT**: Must start with "Use this agent when..." and include 2-4 sentences
+   - **INCLUDE SPECIFIC SCENARIOS**: List 3+ specific use cases relevant to the project type
+   - **HIGHLIGHT CAPABILITIES**: What the agent excels at for this tech stack
+   - **TARGET OUTCOMES**: Perfect for X, ideal when Y, essential for Z
+   - Embed compliance protocols that prevent over-engineering
 4. **DESIGN** commands for common workflows with mandatory verification built-in
 5. **GENERATE** hooks for automation that enforce REAL testing (not mock-only)
 6. **ENSURE** all recommendations prevent over-engineering for a new project
@@ -408,6 +436,24 @@ For this project idea, I need to:
 6. **SET UP** hooks for real testing automation (not mock-only)
 7. **ENSURE** every component includes anti-hallucination guards
 </thinking>
+
+<agent_description_examples>
+❌ **BAD EXAMPLES** (too brief, vague):
+- "React specialist for frontend development"
+- "Database expert. Use for data tasks"  
+- "API developer with modern patterns"
+
+✅ **GOOD EXAMPLES** (detailed, specific):
+- "Use this agent when you need React/Next.js development expertise for complex frontend applications. This includes building interactive user interfaces, implementing state management with Context or Redux, optimizing performance with React.memo and useMemo, or integrating with modern UI libraries like Tailwind CSS. Perfect for component architecture planning, essential when building scalable frontend applications, and excels at modern React patterns and best practices."
+- "Use this agent when you need comprehensive API development and database integration expertise. This includes designing RESTful endpoints, implementing authentication and authorization, optimizing database queries with ORMs like Prisma, or building real-time features with WebSockets. Perfect for backend architecture decisions, essential when scaling API performance, and excels at database design and API security implementation."
+
+**REQUIRED PATTERNS FOR ALL AGENTS**:
+- Start with "Use this agent when..." 
+- Include 2-4 sentences minimum
+- List 3+ specific scenarios relevant to the recommended tech stack
+- Include "Perfect for...", "Essential when...", or "Excels at..." phrases
+- Be specific about technologies and capabilities
+</agent_description_examples>
 
 <examples>
 - For a "task management web app": React/Next.js + TypeScript + Tailwind + Prisma + PostgreSQL (with REAL integration tests)
