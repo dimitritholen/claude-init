@@ -1,6 +1,7 @@
 ---
 name: typescript-senior-dev
-description: Senior TypeScript developer with mandatory verification protocols and anti-hallucination guards
+description: Senior TypeScript developer with mandatory verification protocols and anti-hallucination guards. Use by default when developing Typescript code.
+model: sonnet
 tools: Read, Write, Edit, Bash
 ---
 

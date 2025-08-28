@@ -19,9 +19,16 @@ export class FileGenerator {
   }
 
   private generateAgentFile(agent: any): string {
+    // Ensure description ends with "Use when" clause
+    let description = agent.description;
+    if (!description.includes('Use ') && !description.includes('use ')) {
+      description = `${description}. Use for related tasks`;
+    }
+    
     const yamlHeader = `---
 name: ${agent.name}
-description: ${agent.description}
+description: ${description}
+model: ${agent.model || 'sonnet'}
 tools: ${agent.tools ? agent.tools.join(', ') : 'Read, Write, Edit, Bash'}
 ---
 
@@ -196,7 +203,7 @@ ${MANDATORY_COMPLIANCE_PROTOCOL}
     };
 
     // Generate agent files
-    if (recommendations.recommendedAgents && Array.isArray(recommendations.recommendedAgents)) {
+    if (recommendations.recommendedAgents && Array.isArray(recommendations.recommendedAgents) && recommendations.recommendedAgents.length > 0) {
       for (const agent of recommendations.recommendedAgents) {
         if (agent && agent.name) {
           const fileName = `${agent.name.toLowerCase().replace(/\s+/g, '-')}.md`;
@@ -237,7 +244,7 @@ ${MANDATORY_COMPLIANCE_PROTOCOL}
     }
 
     // Generate command files
-    if (recommendations.recommendedCommands && Array.isArray(recommendations.recommendedCommands)) {
+    if (recommendations.recommendedCommands && Array.isArray(recommendations.recommendedCommands) && recommendations.recommendedCommands.length > 0) {
       for (const command of recommendations.recommendedCommands) {
         if (command && command.name) {
           const fileName = `${command.name.toLowerCase().replace(/^\//, '').replace(/\s+/g, '-')}.md`;

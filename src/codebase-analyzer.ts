@@ -85,7 +85,7 @@ export class CodebaseAnalyzer {
     const configPatterns = [
       // Web configs
       'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
-      'webpack.config.js', 'vite.config.js', 'rollup.config.js',
+      'webpack.config.js', 'webpack.config.ts', 'vite.config.js', 'vite.config.ts', 'rollup.config.js',
       'next.config.js', 'nuxt.config.js', 'vue.config.js',
       'tsconfig.json', 'jsconfig.json', 'babel.config.js', '.babelrc',
       'eslint.config.js', '.eslintrc', '.prettierrc', 'tailwind.config.js',

@@ -1,6 +1,7 @@
 ---
 name: cli-architect
-description: CLI architecture specialist enforcing simplicity and real testing
+description: CLI architecture specialist enforcing simplicity and real testing. Use when working with terminal specific code.
+model: sonnet
 tools: Read, Write, Edit, Bash
 ---
 

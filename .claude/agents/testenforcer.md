@@ -1,6 +1,8 @@
 ---
 name: test-enforcer
-description: Testing specialist who flags mock-only tests as inadequate and enforces real integration testing
+description: Testing specialist who flags mock-only tests as inadequate and enforces real integration testing. Use proactively
+for comprehensive testing.
+model: sonnet
 tools: Read, Write, Edit, Bash
 ---
 
