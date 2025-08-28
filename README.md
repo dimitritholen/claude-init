@@ -16,11 +16,15 @@ Generate personalized Claude Code agents, commands, and rules based on your code
 - 🛡️ **Smart Guardrails**: Prevents over-engineering and enforces real testing
 - 🚀 **Beautiful UX**: Progress tracking with real-time checkmarks
 
+![screenshot 1](screenshot1.png)
+
+![screenshot 2](screenshot2.png)
+
 ## Installation
 
 ```bash
 # Install globally
-npm install -g claude-init
+npm install -g claude-init // Will be online later today!
 
 # Or run directly
 npx claude-init

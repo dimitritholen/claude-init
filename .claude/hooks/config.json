@@ -1,0 +1,46 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "description": "Auto-format and verify TypeScript after edits",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx prettier --write $FILE && npx tsc --noEmit $FILE || echo 'TypeScript check failed - fix errors!'"
+          }
+        ]
+      },
+      {
+        "matcher": "Write:*.test.ts|Edit:*.test.ts",
+        "description": "Verify test includes real integration tests",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "grep -q 'mock\\|Mock\\|stub\\|Stub' $FILE && echo '⚠️  WARNING: Detected mocks - ensure real integration tests exist!' || echo '✅ No mocks detected'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "description": "Run REAL tests (not mocks) and verify results after task completion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '🧪 Running REAL tests...' && npm test 2>&1 | tee test-output.log && echo '📊 Analyzing test results...' && grep -i 'mock\\|stub' test-output.log && echo '⚠️  WARNING: Mock-based tests detected - HIGH RISK!' || echo '✅ Tests appear to use real implementations'"
+          }
+        ]
+      },
+      {
+        "description": "Verify build and check for over-engineering",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run build && echo '🔍 Checking for over-engineering...' && find src -name '*.ts' -exec wc -l {} + | sort -nr | head -10 && echo '⚠️  Files above 200 lines may be over-engineered'"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -14,7 +14,7 @@ const program = new Command();
 async function main() {
   console.log(
     boxen(
-      `🚀 ${chalk.bold.blue('Welcome to Claude Project Setup!')}\n\n${chalk.gray('Generate personalized Claude Code agents, commands, and rules\nbased on your codebase and experience level.')}\n\n${chalk.yellow('💡 Press Q at any time to quit')}`,
+      `🚀 ${chalk.bold.blue('Welcome to Claude Project Setup!')}\n\n${chalk.gray('Generate personalized Claude Code agents, commands, and rules\nbased on your codebase and experience level.')}`,
       {
         padding: 1,
         borderStyle: 'round',
@@ -23,6 +23,8 @@ async function main() {
       }
     )
   );
+
+  let progress: ProgressTracker | undefined;
 
   try {
     const userProfile = await startInteractiveSetup();
@@ -38,6 +40,7 @@ async function main() {
           { id: 'generate-setup', message: 'Generating personalized setup' },
           { id: 'create-agents', message: 'Creating specialized agents' },
           { id: 'create-commands', message: 'Creating custom commands' },
+          { id: 'create-hooks', message: 'Creating automation hooks' },
           { id: 'create-rules', message: 'Writing CLAUDE.md rules' }
         ]
       : [
@@ -46,54 +49,136 @@ async function main() {
           { id: 'generate-setup', message: 'Generating personalized setup' },
           { id: 'create-agents', message: 'Creating specialized agents' },
           { id: 'create-commands', message: 'Creating custom commands' },
+          { id: 'create-hooks', message: 'Creating automation hooks' },
           { id: 'create-rules', message: 'Writing CLAUDE.md rules' }
         ];
 
-    const progress = new ProgressTracker(progressSteps);
+    progress = new ProgressTracker(progressSteps);
     progress.display();
+    progress.startAnimation();
+
+    // Small delay to ensure user sees the initial state before work begins
+    await new Promise(resolve => setTimeout(resolve, 200));
 
     let recommendations: any;
     let projectPath = userProfile.projectPath || process.cwd();
 
     if (userProfile.projectType === 'new') {
       // Generate from idea
-      progress.complete('analyze-idea');
       const analysis = await claudeClient.generateFromIdea(userProfile.projectIdea!, userProfile);
+      progress.complete('analyze-idea');
+      
+      await new Promise(resolve => setTimeout(resolve, 300));
       progress.complete('generate-setup');
       
       try {
         recommendations = JSON.parse(analysis);
+        
+        // Validate that we have the basic structure
+        if (!recommendations.projectAnalysis) {
+          console.warn(chalk.yellow('⚠️  Missing project analysis in response'));
+        }
+        if (!recommendations.recommendedAgents || !Array.isArray(recommendations.recommendedAgents)) {
+          console.warn(chalk.yellow('⚠️  Missing or invalid agents in response, will use defaults'));
+        }
+        if (!recommendations.recommendedCommands || !Array.isArray(recommendations.recommendedCommands)) {
+          console.warn(chalk.yellow('⚠️  Missing or invalid commands in response, will use defaults'));
+        }
+        
       } catch (error) {
-        console.error(chalk.red('\n❌ Failed to parse AI response:'), analysis.substring(0, 200) + '...');
-        throw new Error('Invalid response format from Claude');
+        console.error(chalk.red('\n❌ Failed to parse AI response:'), analysis.substring(0, 400) + '...');
+        console.error(chalk.red('❌ Parse error:'), error instanceof Error ? error.message : error);
+        
+        // Try to continue with minimal fallback structure
+        console.warn(chalk.yellow('⚠️  Using fallback configuration...'));
+        recommendations = {
+          projectAnalysis: {
+            detectedTechnologies: ['Based on idea'],
+            projectType: 'New Project',
+            complexity: 'medium',
+            buildTools: ['npm'],
+            testingSetup: 'to-be-added',
+            mainLanguages: ['TypeScript']
+          },
+          recommendedAgents: [],
+          recommendedCommands: [],
+          recommendedHooks: {},
+          claudeRules: {
+            codingStandards: ['Use modern best practices', 'Follow project conventions'],
+            architectureGuidelines: ['Start simple', 'Follow YAGNI principle'],
+            testingRequirements: ['Plan for real testing from start', 'Avoid mock-only testing'],
+            simplicityGuardrails: ['Build MVP first', 'Add features incrementally']
+          }
+        };
       }
     } else {
       // Analyze existing codebase
-      progress.complete('analyze-codebase');
       const codebaseInfo = await analyzer.analyze(projectPath);
       const formattedInfo = analyzer.formatForLLM(codebaseInfo);
+      progress.complete('analyze-codebase');
       
+      // Add small delay to show the step transition
+      await new Promise(resolve => setTimeout(resolve, 300));
       progress.complete('detect-patterns');
+      
       const analysis = await claudeClient.analyzeCodebase(formattedInfo, userProfile);
       progress.complete('generate-setup');
       
       try {
         recommendations = JSON.parse(analysis);
+        
+        // Validate that we have the basic structure
+        if (!recommendations.projectAnalysis) {
+          console.warn(chalk.yellow('⚠️  Missing project analysis in response'));
+        }
+        if (!recommendations.recommendedAgents || !Array.isArray(recommendations.recommendedAgents)) {
+          console.warn(chalk.yellow('⚠️  Missing or invalid agents in response, will use defaults'));
+        }
+        if (!recommendations.recommendedCommands || !Array.isArray(recommendations.recommendedCommands)) {
+          console.warn(chalk.yellow('⚠️  Missing or invalid commands in response, will use defaults'));
+        }
+        
       } catch (error) {
-        console.error(chalk.red('\n❌ Failed to parse AI response:'), analysis.substring(0, 200) + '...');
-        throw new Error('Invalid response format from Claude');
+        console.error(chalk.red('\n❌ Failed to parse AI response:'), analysis.substring(0, 400) + '...');
+        console.error(chalk.red('❌ Parse error:'), error instanceof Error ? error.message : error);
+        
+        // Try to continue with minimal fallback structure
+        console.warn(chalk.yellow('⚠️  Using fallback configuration...'));
+        recommendations = {
+          projectAnalysis: {
+            detectedTechnologies: ['TypeScript', 'Node.js'],
+            projectType: 'CLI Tool',
+            complexity: 'medium',
+            buildTools: ['npm'],
+            testingSetup: 'missing',
+            mainLanguages: ['TypeScript']
+          },
+          recommendedAgents: [],
+          recommendedCommands: [],
+          recommendedHooks: {},
+          claudeRules: {
+            codingStandards: ['Use TypeScript strict mode', 'Follow existing patterns'],
+            architectureGuidelines: ['Keep solutions simple', 'Follow YAGNI principle'],
+            testingRequirements: ['Add real integration tests', 'Avoid mock-only testing'],
+            simplicityGuardrails: ['Implement only required features', 'Prefer composition over inheritance']
+          }
+        };
       }
     }
 
     // Generate files with progress updates
-    progress.complete('create-agents');
     await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
+    progress.complete('create-agents');
     
-    progress.complete('create-commands');
     await new Promise(resolve => setTimeout(resolve, 500));
+    progress.complete('create-commands');
+    
+    await new Promise(resolve => setTimeout(resolve, 500));
+    progress.complete('create-hooks');
     
     const generatedFiles = await generator.generate(projectPath, recommendations, userProfile);
     progress.complete('create-rules');
+    progress.stopAnimation(); // Ensure animation is stopped
 
     // Display results
     console.log(
@@ -132,6 +217,9 @@ async function main() {
     console.log(`\n${chalk.green('🎉 Ready to use! Start Claude Code in this directory to use your personalized setup.')}`);
 
   } catch (error) {
+    if (progress) {
+      progress.stopAnimation(); // Clean up animation on error
+    }
     console.error(chalk.red('\n❌ Error:'), error instanceof Error ? error.message : error);
     process.exit(1);
   }
