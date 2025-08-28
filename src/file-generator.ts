@@ -388,26 +388,7 @@ NEVER proactively create documentation files (*.md) or README files. Only create
         }
       }
     } else {
-      console.warn('⚠️  No agents found in recommendations, creating default agent...');
-      // Create a default agent as fallback
-      const defaultAgent = {
-        name: 'Development Helper',
-        description: 'General purpose development assistant',
-        tools: ['Read', 'Write', 'Edit', 'Bash'],
-        systemPrompt: 'You are a helpful development assistant. Follow the project guidelines in CLAUDE.md.'
-      };
-      const fileName = 'development-helper.md';
-      const filePath = join(agentsDir, fileName);
-      const content = this.generateAgentFile(defaultAgent);
-      
-      await this.ensureDirectory(filePath);
-      await writeFile(filePath, content, 'utf-8');
-      
-      generatedFiles.agents.push({
-        name: defaultAgent.name,
-        content,
-        path: filePath
-      });
+      throw new Error('No agents found in recommendations. Quality validation should have caught this.');
     }
 
     // Generate command files
@@ -429,27 +410,7 @@ NEVER proactively create documentation files (*.md) or README files. Only create
         }
       }
     } else {
-      console.warn('⚠️  No commands found in recommendations, creating default command...');
-      // Create a default command as fallback
-      const defaultCommand = {
-        name: 'help',
-        description: 'General help and guidance',
-        argumentHint: '[topic]',
-        allowedTools: ['Read', 'Grep'],
-        prompt: 'Provide helpful guidance on the requested topic. Use the project context from CLAUDE.md to give relevant advice.'
-      };
-      const fileName = 'help.md';
-      const filePath = join(commandsDir, fileName);
-      const content = this.generateCommandFile(defaultCommand);
-      
-      await this.ensureDirectory(filePath);
-      await writeFile(filePath, content, 'utf-8');
-      
-      generatedFiles.commands.push({
-        name: defaultCommand.name,
-        content,
-        path: filePath
-      });
+      throw new Error('No commands found in recommendations. Quality validation should have caught this.');
     }
 
     // Generate or update CLAUDE.md using the intelligent manager

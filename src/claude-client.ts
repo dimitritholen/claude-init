@@ -1,6 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { createCodebaseAnalysisPrompt, createIdeaGenerationPrompt } from './prompt-templates';
 
+export class QualityError extends Error {
+  public validationErrors: string[];
+  
+  constructor(message: string, validationErrors: string[] = []) {
+    super(message);
+    this.name = 'QualityError';
+    this.validationErrors = validationErrors;
+  }
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  errors: string[];
+}
+
 export type ModelType = 'sonnet' | 'opus';
 
 export class ClaudeClient {
@@ -120,6 +135,82 @@ export class ClaudeClient {
     }
   }
 
+  private validateResponseQuality(parsed: any): ValidationResult {
+    const errors: string[] = [];
+    
+    // Check project analysis
+    if (!parsed.projectAnalysis) {
+      errors.push('Missing project analysis');
+    }
+    
+    // Check agents
+    if (!parsed.recommendedAgents || !Array.isArray(parsed.recommendedAgents)) {
+      errors.push('Missing recommended agents array');
+    } else if (parsed.recommendedAgents.length < 3) {
+      errors.push(`Need at least 3 specialized agents (got ${parsed.recommendedAgents.length})`);
+    } else {
+      parsed.recommendedAgents.forEach((agent: any, i: number) => {
+        if (!agent.name) {
+          errors.push(`Agent ${i + 1}: missing name`);
+        }
+        if (!agent.description || agent.description.length < 50) {
+          errors.push(`Agent ${i + 1}: description too short or missing (need 50+ chars)`);
+        }
+        if (!agent.systemPrompt || agent.systemPrompt.length < 100) {
+          errors.push(`Agent ${i + 1}: system prompt inadequate (need 100+ chars)`);
+        }
+        if (!agent.tools || !Array.isArray(agent.tools) || agent.tools.length === 0) {
+          errors.push(`Agent ${i + 1}: missing or empty tools array`);
+        }
+      });
+    }
+    
+    // Check commands
+    if (!parsed.recommendedCommands || !Array.isArray(parsed.recommendedCommands)) {
+      errors.push('Missing recommended commands array');
+    } else if (parsed.recommendedCommands.length < 2) {
+      errors.push(`Need at least 2 commands (got ${parsed.recommendedCommands.length})`);
+    } else {
+      parsed.recommendedCommands.forEach((command: any, i: number) => {
+        if (!command.name) {
+          errors.push(`Command ${i + 1}: missing name`);
+        }
+        if (!command.description || command.description.length < 20) {
+          errors.push(`Command ${i + 1}: description too short or missing`);
+        }
+        if (!command.prompt || command.prompt.length < 50) {
+          errors.push(`Command ${i + 1}: prompt inadequate (need 50+ chars)`);
+        }
+      });
+    }
+    
+    // Check Claude rules
+    if (!parsed.claudeRules) {
+      errors.push('Missing claude rules');
+    } else {
+      if (!parsed.claudeRules.codingStandards || 
+          !Array.isArray(parsed.claudeRules.codingStandards) ||
+          parsed.claudeRules.codingStandards.length < 5) {
+        errors.push('Need at least 5 coding standards');
+      }
+      if (!parsed.claudeRules.architectureGuidelines || 
+          !Array.isArray(parsed.claudeRules.architectureGuidelines) ||
+          parsed.claudeRules.architectureGuidelines.length < 3) {
+        errors.push('Need at least 3 architecture guidelines');
+      }
+      if (!parsed.claudeRules.testingRequirements || 
+          !Array.isArray(parsed.claudeRules.testingRequirements) ||
+          parsed.claudeRules.testingRequirements.length < 3) {
+        errors.push('Need at least 3 testing requirements');
+      }
+    }
+    
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  }
+
   async validateApiKey(): Promise<boolean> {
     try {
       await this.client.messages.create({
@@ -154,32 +245,19 @@ export class ClaudeClient {
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     const extracted = this.extractJson(text);
     
-    // Validate extracted JSON before returning
+    // Validate extracted JSON with strict quality checks
     try {
       const parsed = JSON.parse(extracted);
       
-      // Validate required structure
-      const requiredFields = ['projectAnalysis', 'recommendedAgents', 'recommendedCommands', 'claudeRules'];
-      const missingFields = requiredFields.filter(field => !parsed.hasOwnProperty(field));
+      // Perform strict quality validation
+      const validation = this.validateResponseQuality(parsed);
       
-      if (missingFields.length > 0) {
-        console.warn(`⚠️  Missing fields in Claude response: ${missingFields.join(', ')}`);
-        console.warn('Response structure:', Object.keys(parsed));
-        
-        // Add minimal default structure for missing fields
-        if (!parsed.recommendedAgents) parsed.recommendedAgents = [];
-        if (!parsed.recommendedCommands) parsed.recommendedCommands = [];
-        if (!parsed.recommendedHooks) parsed.recommendedHooks = {};
-        if (!parsed.claudeRules) {
-          parsed.claudeRules = {
-            codingStandards: ['Follow existing code patterns'],
-            architectureGuidelines: ['Keep solutions simple'],
-            testingRequirements: ['Write real tests, not just mocks'],
-            simplicityGuardrails: ['Implement only what is required']
-          };
-        }
-        
-        return JSON.stringify(parsed);
+      if (!validation.isValid) {
+        // FAIL - do not create defaults or fallbacks
+        throw new QualityError(
+          'Claude analysis does not meet quality standards',
+          validation.errors
+        );
       }
       
       return extracted;
@@ -321,32 +399,19 @@ export class ClaudeClient {
     const text = response.content[0].type === 'text' ? response.content[0].text : '';
     const extracted = this.extractJson(text);
     
-    // Validate extracted JSON before returning
+    // Validate extracted JSON with strict quality checks
     try {
       const parsed = JSON.parse(extracted);
       
-      // Validate required structure
-      const requiredFields = ['projectAnalysis', 'recommendedAgents', 'recommendedCommands', 'claudeRules'];
-      const missingFields = requiredFields.filter(field => !parsed.hasOwnProperty(field));
+      // Perform strict quality validation
+      const validation = this.validateResponseQuality(parsed);
       
-      if (missingFields.length > 0) {
-        console.warn(`⚠️  Missing fields in Claude response: ${missingFields.join(', ')}`);
-        console.warn('Response structure:', Object.keys(parsed));
-        
-        // Add minimal default structure for missing fields
-        if (!parsed.recommendedAgents) parsed.recommendedAgents = [];
-        if (!parsed.recommendedCommands) parsed.recommendedCommands = [];
-        if (!parsed.recommendedHooks) parsed.recommendedHooks = {};
-        if (!parsed.claudeRules) {
-          parsed.claudeRules = {
-            codingStandards: ['Follow existing code patterns'],
-            architectureGuidelines: ['Keep solutions simple'],
-            testingRequirements: ['Write real tests, not just mocks'],
-            simplicityGuardrails: ['Implement only what is required']
-          };
-        }
-        
-        return JSON.stringify(parsed);
+      if (!validation.isValid) {
+        // FAIL - do not create defaults or fallbacks
+        throw new QualityError(
+          'Claude analysis does not meet quality standards',
+          validation.errors
+        );
       }
       
       return extracted;

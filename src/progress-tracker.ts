@@ -10,69 +10,45 @@ export interface ProgressStep {
 export class ProgressTracker {
   private steps: ProgressStep[] = [];
   private animationInterval?: NodeJS.Timeout;
-  private animationDots = 0;
+  private displayed = false;
+  private completed = new Set<string>();
 
   constructor(steps: Array<{ id: string; message: string }>) {
     this.steps = steps.map(step => ({ ...step, completed: false, active: false }));
-    // Set first step as active initially
-    if (this.steps.length > 0) {
-      this.steps[0].active = true;
-    }
   }
 
   display() {
-    // Clear previous progress display
-    process.stdout.write('\x1b[2K\r'); // Clear current line
-    
-    console.log('\n' + chalk.cyan.bold('Progress:'));
-    for (const step of this.steps) {
-      let icon: string;
-      let text: string;
-      
-      if (step.completed) {
-        icon = chalk.green('✅');
-        text = chalk.green(step.message);
-      } else if (step.active) {
-        icon = chalk.yellow('◐');
-        const dots = '.'.repeat(this.animationDots + 1);
-        text = chalk.yellow(step.message + dots);
-      } else {
-        icon = chalk.gray('☐');
-        text = chalk.gray(step.message);
+    if (!this.displayed) {
+      console.log('\n' + chalk.cyan.bold('Progress:'));
+      for (const step of this.steps) {
+        console.log(`${chalk.gray('☐')} ${chalk.gray(step.message)}`);
       }
-      
-      console.log(`${icon} ${text}`);
+      console.log('');
+      this.displayed = true;
     }
-    console.log('');
   }
 
   complete(stepId: string) {
-    const currentStepIndex = this.steps.findIndex(s => s.id === stepId);
-    if (currentStepIndex !== -1) {
-      const step = this.steps[currentStepIndex];
+    if (this.completed.has(stepId)) return; // Prevent duplicate completions
+    
+    const step = this.steps.find(s => s.id === stepId);
+    if (step) {
+      this.completed.add(stepId);
       step.completed = true;
-      step.active = false;
       
-      // Set next step as active
-      const nextStepIndex = currentStepIndex + 1;
-      if (nextStepIndex < this.steps.length) {
-        this.steps[nextStepIndex].active = true;
-        this.startAnimation();
-      } else {
-        // All steps completed, stop animation
+      // Print clean completion message
+      console.log(`${chalk.green('✓')} ${chalk.green(step.message)}`);
+      
+      // Stop animation if this is the last step
+      if (this.completed.size === this.steps.length) {
         this.stopAnimation();
       }
-      
-      this.updateDisplay();
     }
   }
 
   startAnimation() {
-    this.stopAnimation(); // Clear any existing animation
-    this.animationInterval = setInterval(() => {
-      this.animationDots = (this.animationDots + 1) % 3; // Cycle through 0, 1, 2
-      this.updateDisplay();
-    }, 500);
+    // No animation needed - we use clean line-by-line output
+    // Animation was causing the display corruption
   }
 
   stopAnimation() {
@@ -82,18 +58,31 @@ export class ProgressTracker {
     }
   }
 
-  private updateDisplay() {
-    // Move cursor up to overwrite previous progress
-    const linesToClear = this.steps.length + 3; // steps + header + empty lines
-    process.stdout.write(`\x1b[${linesToClear}A`); // Move cursor up
-    this.display();
+  logWarning(message: string) {
+    // Clean warning output that doesn't interfere with progress
+    console.log(chalk.yellow(`⚠️  ${message}`));
+  }
+
+  logError(message: string) {
+    // Clean error output
+    console.log(chalk.red(`❌ ${message}`));
+  }
+
+  fail(stepId: string, message: string) {
+    const step = this.steps.find(s => s.id === stepId);
+    if (step) {
+      console.log(`${chalk.red('✗')} ${chalk.red(step.message)} - ${chalk.red(message)}`);
+    }
+    this.stopAnimation();
   }
 
   reset() {
     this.stopAnimation();
-    this.steps.forEach((step, index) => {
+    this.completed.clear();
+    this.displayed = false;
+    this.steps.forEach(step => {
       step.completed = false;
-      step.active = index === 0;
+      step.active = false;
     });
   }
 }

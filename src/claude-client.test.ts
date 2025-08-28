@@ -79,27 +79,65 @@ describe('ClaudeClient Integration Tests', () => {
           type: 'text',
           text: `\`\`\`json
 {
-  "projectAnalysis": "TypeScript CLI project with testing setup",
+  "projectAnalysis": {
+    "projectType": "CLI Tool",
+    "complexity": "medium",
+    "detectedTechnologies": ["TypeScript", "Node.js"]
+  },
   "recommendedAgents": [
     {
-      "name": "typescript-expert",
-      "description": "TypeScript development specialist"
+      "name": "TypeScript CLI Specialist",
+      "description": "Expert in TypeScript CLI development with comprehensive knowledge of command-line interfaces, argument parsing, and terminal interactions for this specific project",
+      "systemPrompt": "You are a TypeScript CLI specialist for this project. Focus on clean command structure, proper error handling, user-friendly output, and maintainable code architecture. Understand the specific CLI patterns and tools used in this codebase.",
+      "tools": ["Read", "Write", "Edit", "Bash", "Grep"]
     },
     {
-      "name": "testing-assistant", 
-      "description": "Test writing and validation expert"
+      "name": "Testing Integration Expert", 
+      "description": "Specialist in real integration testing and test automation with focus on CLI testing, process spawning, and filesystem interactions",
+      "systemPrompt": "You are a testing expert focused on real integration tests. Avoid mock-only testing and ensure all CLI commands are tested with actual process execution. Focus on testing real user scenarios and edge cases.",
+      "tools": ["Read", "Write", "Edit", "Bash"]
+    },
+    {
+      "name": "Node.js Performance Optimizer",
+      "description": "Expert in Node.js performance optimization, async patterns, and CLI tool efficiency for production-ready command-line applications",
+      "systemPrompt": "You are a Node.js performance specialist. Focus on optimizing CLI startup time, memory usage, and async operations. Ensure the tool is fast and efficient for daily developer use.",
+      "tools": ["Read", "Edit", "Bash"]
     }
   ],
   "recommendedCommands": [
     {
-      "name": "run-tests",
-      "description": "Execute test suite"
+      "name": "analyze-performance",
+      "description": "Analyze CLI performance and startup time",
+      "prompt": "Analyze the CLI tool performance, including startup time, memory usage, and execution efficiency. Identify bottlenecks and suggest specific optimizations for faster user experience."
+    },
+    {
+      "name": "test-cli-scenarios",
+      "description": "Run comprehensive CLI testing scenarios",
+      "prompt": "Execute comprehensive testing of CLI scenarios including edge cases, error handling, and user interaction flows. Ensure all commands work reliably across different environments."
     }
   ],
   "recommendedHooks": {},
   "claudeRules": {
-    "codingStandards": ["Use TypeScript strict mode"],
-    "testingRequirements": ["Write real integration tests"]
+    "codingStandards": [
+      "Use TypeScript strict mode with no implicit any",
+      "Implement proper error handling for all CLI operations", 
+      "Use commander.js or yargs for consistent argument parsing",
+      "Follow Node.js CLI best practices for user experience",
+      "Document all CLI commands with clear help text",
+      "Use proper exit codes for different error conditions"
+    ],
+    "architectureGuidelines": [
+      "Keep CLI commands focused and single-purpose",
+      "Use dependency injection for testable CLI components",
+      "Separate CLI logic from business logic for reusability",
+      "Follow UNIX philosophy for tool composition"
+    ],
+    "testingRequirements": [
+      "Test CLI commands with real subprocess execution",
+      "Integration tests for file system operations",
+      "Test error scenarios with actual failure conditions",
+      "Performance tests for CLI startup time"
+    ]
   }
 }
 \`\`\``
@@ -128,8 +166,8 @@ describe('ClaudeClient Integration Tests', () => {
       expect(Array.isArray(parsed.recommendedAgents)).toBe(true);
       expect(Array.isArray(parsed.recommendedCommands)).toBe(true);
       expect(typeof parsed.claudeRules).toBe('object');
-      expect(parsed.recommendedAgents).toHaveLength(2);
-      expect(parsed.recommendedCommands).toHaveLength(1);
+      expect(parsed.recommendedAgents).toHaveLength(3);
+      expect(parsed.recommendedCommands).toHaveLength(2);
       
       console.log('✅ VERIFIED: Codebase analysis with valid JSON response');
       console.log('📊 Response structure:', Object.keys(parsed));
@@ -137,7 +175,7 @@ describe('ClaudeClient Integration Tests', () => {
       console.log('⚡ Commands suggested:', parsed.recommendedCommands.length);
     });
 
-    it('should handle response with missing fields', async () => {
+    it('should reject response with missing fields', async () => {
       const mockResponse = {
         content: [{
           type: 'text',
@@ -151,20 +189,11 @@ describe('ClaudeClient Integration Tests', () => {
 
       mockMessagesCreate.mockResolvedValue(mockResponse);
 
-      const result = await client.analyzeCodebase("Empty project", { role: 'junior' });
+      // Should reject incomplete responses with QualityError
+      await expect(client.analyzeCodebase("Empty project", { role: 'junior' }))
+        .rejects.toThrow('Claude analysis does not meet quality standards');
       
-      // Should still produce valid JSON with required fields
-      const parsed = JSON.parse(result);
-      expect(parsed).toHaveProperty('projectAnalysis');
-      expect(parsed).toHaveProperty('claudeRules');
-      expect(parsed).toHaveProperty('recommendedAgents');
-      expect(parsed).toHaveProperty('recommendedCommands');
-      
-      // Should have default values for missing fields
-      expect(Array.isArray(parsed.recommendedAgents)).toBe(true);
-      expect(Array.isArray(parsed.recommendedCommands)).toBe(true);
-      
-      console.log('✅ VERIFIED: Graceful handling of response with missing fields');
+      console.log('✅ VERIFIED: Quality validation rejects incomplete responses');
     });
 
     it('should handle malformed JSON response', async () => {
@@ -184,7 +213,7 @@ describe('ClaudeClient Integration Tests', () => {
   });
 
   describe('Idea Generation', () => {
-    it('should generate from project idea', async () => {
+    it('should reject inadequate project idea responses', async () => {
       const mockResponse = {
         content: [{
           type: 'text',
@@ -222,18 +251,11 @@ describe('ClaudeClient Integration Tests', () => {
         preferences: ['TypeScript', 'automation']
       };
 
-      const result = await client.generateFromIdea(projectIdea, userProfile);
+      // Should reject inadequate responses (only 1 agent, insufficient rules)
+      await expect(client.generateFromIdea(projectIdea, userProfile))
+        .rejects.toThrow('Claude analysis does not meet quality standards');
       
-      // Verify valid JSON with required structure
-      const parsed = JSON.parse(result);
-      expect(parsed).toHaveProperty('projectAnalysis');
-      expect(parsed).toHaveProperty('recommendedAgents');
-      expect(parsed).toHaveProperty('recommendedCommands');
-      expect(parsed).toHaveProperty('claudeRules');
-      expect(parsed.projectAnalysis).toContain('CLI tool');
-      
-      console.log('✅ VERIFIED: Project idea generation with valid response');
-      console.log('💡 Generated for idea:', projectIdea);
+      console.log('✅ VERIFIED: Quality validation rejects inadequate idea responses');
     });
   });
 
