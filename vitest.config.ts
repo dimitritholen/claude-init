@@ -13,7 +13,7 @@ export default defineConfig({
         'coverage/**'
       ]
     },
-    testTimeout: 30000, // Allow longer timeouts for real API calls
+    testTimeout: 120000, // Allow longer timeouts for real API calls
     environment: 'node'
   }
 })

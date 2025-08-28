@@ -24,10 +24,10 @@ Generate personalized Claude Code agents, commands, and rules based on your code
 
 ```bash
 # Install globally
-npm install -g claude-init // Will be online later today!
+npm install -g @scriptdude/claude-init
 
 # Or run directly
-npx claude-init
+npx @scriptdude/claude-init
 ```
 
 ## Usage
@@ -45,6 +45,7 @@ claude-init
 ### Environment Setup
 
 Set your Anthropic API key:
+
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-your-key-here
 ```
@@ -61,6 +62,7 @@ Or the tool will prompt you for it interactively.
 ## Examples
 
 ### Universal Language Support
+
 - **Python**: Generates pytest agents, virtual env commands, PEP 8 enforcement
 - **Go**: Creates testing agents, module commands, gofmt hooks  
 - **Rust**: Cargo-focused agents, clippy hooks, performance testing commands
@@ -68,6 +70,7 @@ Or the tool will prompt you for it interactively.
 - **Any Framework**: AI detects and adapts to YOUR specific stack
 
 ### Intelligent Project Detection
+
 - **Monorepos**: Detects multiple package.json files, generates workspace-aware commands
 - **Full-stack**: Separate frontend/backend agents with appropriate tool restrictions
 - **Legacy Code**: Adapts to existing patterns without assumptions

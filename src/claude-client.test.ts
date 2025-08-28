@@ -1,62 +1,114 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi, beforeEach } from 'vitest';
 import { ClaudeClient } from './claude-client';
+import Anthropic from '@anthropic-ai/sdk';
 
-describe('ClaudeClient REAL Integration Tests', () => {
+// Mock the Anthropic SDK
+vi.mock('@anthropic-ai/sdk');
+
+describe('ClaudeClient Integration Tests', () => {
   let client: ClaudeClient;
-  let validApiKey: string;
+  let mockAnthropicInstance: any;
+  let mockMessagesCreate: any;
 
-  beforeAll(() => {
-    // Test requires real API key - check environment
-    validApiKey = process.env.ANTHROPIC_API_KEY || '';
+  beforeEach(() => {
+    // Reset mocks before each test
+    vi.clearAllMocks();
     
-    if (!validApiKey) {
-      console.warn('⚠️  ANTHROPIC_API_KEY not found. Integration tests will be skipped.');
-      console.warn('⚠️  To run full tests, set ANTHROPIC_API_KEY environment variable.');
-    }
+    // Create mock for messages.create
+    mockMessagesCreate = vi.fn();
     
-    client = new ClaudeClient(validApiKey, 'sonnet');
+    // Mock the Anthropic constructor
+    mockAnthropicInstance = {
+      messages: {
+        create: mockMessagesCreate
+      }
+    };
+    
+    (Anthropic as any).mockImplementation(() => mockAnthropicInstance);
+    
+    client = new ClaudeClient('test-api-key', 'sonnet');
   });
 
-  describe('Real API Key Validation', () => {
-    it('should validate real API key with live endpoint', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: API key validation (no key provided)');
-        return;
-      }
+  describe('API Key Validation', () => {
+    it('should validate valid API key', async () => {
+      // Mock successful API response
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: 'test' }]
+      });
 
       const isValid = await client.validateApiKey();
       expect(isValid).toBe(true);
+      expect(mockMessagesCreate).toHaveBeenCalledWith({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'test' }],
+      });
       
-      console.log('✅ VERIFIED: Real API key validation successful');
-    }, 30000);
+      console.log('✅ VERIFIED: API key validation successful');
+    });
 
-    it('should reject invalid API key with live endpoint', async () => {
-      const invalidClient = new ClaudeClient('invalid-key-test-123');
+    it('should reject invalid API key', async () => {
+      // Mock 401 unauthorized response
+      const error = new Error('Unauthorized');
+      (error as any).status = 401;
+      mockMessagesCreate.mockRejectedValue(error);
       
-      const isValid = await invalidClient.validateApiKey();
+      const isValid = await client.validateApiKey();
       expect(isValid).toBe(false);
       
       console.log('✅ VERIFIED: Invalid API key properly rejected');
-    }, 30000);
+    });
+
+    it('should handle other API errors as valid key', async () => {
+      // Mock rate limit or other non-auth error
+      const error = new Error('Rate limited');
+      (error as any).status = 429;
+      mockMessagesCreate.mockRejectedValue(error);
+      
+      const isValid = await client.validateApiKey();
+      expect(isValid).toBe(true); // Should still consider key valid
+      
+      console.log('✅ VERIFIED: Non-auth errors handled correctly');
+    });
   });
 
-  describe('Real Codebase Analysis', () => {
-    it('should analyze codebase with real API response', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: Codebase analysis (no key provided)');
-        return;
-      }
+  describe('Codebase Analysis', () => {
+    it('should analyze codebase with valid JSON response', async () => {
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: `\`\`\`json
+{
+  "projectAnalysis": "TypeScript CLI project with testing setup",
+  "recommendedAgents": [
+    {
+      "name": "typescript-expert",
+      "description": "TypeScript development specialist"
+    },
+    {
+      "name": "testing-assistant", 
+      "description": "Test writing and validation expert"
+    }
+  ],
+  "recommendedCommands": [
+    {
+      "name": "run-tests",
+      "description": "Execute test suite"
+    }
+  ],
+  "recommendedHooks": {},
+  "claudeRules": {
+    "codingStandards": ["Use TypeScript strict mode"],
+    "testingRequirements": ["Write real integration tests"]
+  }
+}
+\`\`\``
+        }]
+      };
 
-      const mockCodebaseInfo = `
-        Project Analysis:
-        - Language: TypeScript
-        - Framework: Node.js CLI
-        - Files: src/index.ts, src/claude-client.ts
-        - Dependencies: @anthropic-ai/sdk, commander, chalk
-        - Build: tsc
-        - Test: none detected
-      `;
+      mockMessagesCreate.mockResolvedValue(mockResponse);
 
+      const mockCodebaseInfo = "TypeScript CLI project";
       const mockUserProfile = {
         role: 'fullstack',
         experience: 'senior',
@@ -76,42 +128,92 @@ describe('ClaudeClient REAL Integration Tests', () => {
       expect(Array.isArray(parsed.recommendedAgents)).toBe(true);
       expect(Array.isArray(parsed.recommendedCommands)).toBe(true);
       expect(typeof parsed.claudeRules).toBe('object');
+      expect(parsed.recommendedAgents).toHaveLength(2);
+      expect(parsed.recommendedCommands).toHaveLength(1);
       
-      console.log('✅ VERIFIED: Real codebase analysis with valid JSON response');
+      console.log('✅ VERIFIED: Codebase analysis with valid JSON response');
       console.log('📊 Response structure:', Object.keys(parsed));
       console.log('🤖 Agents suggested:', parsed.recommendedAgents.length);
       console.log('⚡ Commands suggested:', parsed.recommendedCommands.length);
-      
-    }, 60000);
+    });
 
-    it('should handle malformed responses gracefully', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: Malformed response handling (no key provided)');
-        return;
-      }
+    it('should handle response with missing fields', async () => {
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: `\`\`\`json
+{
+  "projectAnalysis": "Basic project analysis"
+}
+\`\`\``
+        }]
+      };
 
-      // Test with minimal input that might produce edge cases
-      const minimalInput = "Empty project";
-      const userProfile = { role: 'junior', experience: 'beginner' };
+      mockMessagesCreate.mockResolvedValue(mockResponse);
 
-      const result = await client.analyzeCodebase(minimalInput, userProfile);
+      const result = await client.analyzeCodebase("Empty project", { role: 'junior' });
       
       // Should still produce valid JSON with required fields
       const parsed = JSON.parse(result);
       expect(parsed).toHaveProperty('projectAnalysis');
       expect(parsed).toHaveProperty('claudeRules');
+      expect(parsed).toHaveProperty('recommendedAgents');
+      expect(parsed).toHaveProperty('recommendedCommands');
       
-      console.log('✅ VERIFIED: Graceful handling of minimal input with real API');
+      // Should have default values for missing fields
+      expect(Array.isArray(parsed.recommendedAgents)).toBe(true);
+      expect(Array.isArray(parsed.recommendedCommands)).toBe(true);
       
-    }, 30000);
+      console.log('✅ VERIFIED: Graceful handling of response with missing fields');
+    });
+
+    it('should handle malformed JSON response', async () => {
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: 'This is not valid JSON at all'
+        }]
+      };
+
+      mockMessagesCreate.mockResolvedValue(mockResponse);
+
+      await expect(client.analyzeCodebase("test", {})).rejects.toThrow('Failed to extract valid JSON');
+      
+      console.log('✅ VERIFIED: Proper error handling for malformed JSON');
+    });
   });
 
-  describe('Real Idea Generation', () => {
-    it('should generate from project idea with real API response', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: Idea generation (no key provided)');
-        return;
-      }
+  describe('Idea Generation', () => {
+    it('should generate from project idea', async () => {
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: `\`\`\`json
+{
+  "projectAnalysis": "CLI tool for development workflow automation with TypeScript",
+  "recommendedAgents": [
+    {
+      "name": "workflow-expert",
+      "description": "Development workflow automation specialist"
+    }
+  ],
+  "recommendedCommands": [
+    {
+      "name": "automate-workflow",
+      "description": "Automate common development tasks"
+    }
+  ],
+  "recommendedHooks": {},
+  "claudeRules": {
+    "codingStandards": ["Use TypeScript for type safety"],
+    "architectureGuidelines": ["Keep CLI simple and focused"]
+  }
+}
+\`\`\``
+        }]
+      };
+
+      mockMessagesCreate.mockResolvedValue(mockResponse);
 
       const projectIdea = "A CLI tool for managing development workflows";
       const userProfile = {
@@ -128,60 +230,123 @@ describe('ClaudeClient REAL Integration Tests', () => {
       expect(parsed).toHaveProperty('recommendedAgents');
       expect(parsed).toHaveProperty('recommendedCommands');
       expect(parsed).toHaveProperty('claudeRules');
+      expect(parsed.projectAnalysis).toContain('CLI tool');
       
-      console.log('✅ VERIFIED: Real project idea generation with valid response');
+      console.log('✅ VERIFIED: Project idea generation with valid response');
       console.log('💡 Generated for idea:', projectIdea);
-      
-    }, 60000);
+    });
   });
 
   describe('Model Switching', () => {
-    it('should work with sonnet model', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: Sonnet model test (no key provided)');
-        return;
-      }
+    it('should use correct sonnet model', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: 'test' }]
+      });
 
-      const sonnetClient = new ClaudeClient(validApiKey, 'sonnet');
-      const isValid = await sonnetClient.validateApiKey();
-      expect(isValid).toBe(true);
+      const sonnetClient = new ClaudeClient('test-key', 'sonnet');
+      await sonnetClient.validateApiKey();
       
-      console.log('✅ VERIFIED: Sonnet model connectivity');
-    }, 30000);
-
-    it('should work with opus model', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: Opus model test (no key provided)');
-        return;
-      }
-
-      const opusClient = new ClaudeClient(validApiKey, 'opus');
-      const isValid = await opusClient.validateApiKey();
-      expect(isValid).toBe(true);
+      expect(mockMessagesCreate).toHaveBeenCalledWith({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'test' }],
+      });
       
-      console.log('✅ VERIFIED: Opus model connectivity');
-    }, 30000);
+      console.log('✅ VERIFIED: Sonnet model selection');
+    });
+
+    it('should use correct opus model', async () => {
+      mockMessagesCreate.mockResolvedValue({
+        content: [{ type: 'text', text: 'test' }]
+      });
+
+      const opusClient = new ClaudeClient('test-key', 'opus');
+      await opusClient.validateApiKey();
+      
+      expect(mockMessagesCreate).toHaveBeenCalledWith({
+        model: 'claude-opus-4-20250514',
+        max_tokens: 10,
+        messages: [{ role: 'user', content: 'test' }],
+      });
+      
+      console.log('✅ VERIFIED: Opus model selection');
+    });
   });
 
   describe('JSON Extraction Logic', () => {
     it('should extract JSON from code blocks', async () => {
-      if (!validApiKey) {
-        console.log('🔄 SKIPPED: JSON extraction test (no key provided)');
-        return;
-      }
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: `Here's the analysis:
+\`\`\`json
+{
+  "projectAnalysis": "Simple test project",
+  "recommendedAgents": [],
+  "recommendedCommands": [],
+  "claudeRules": {}
+}
+\`\`\`
+Hope this helps!`
+        }]
+      };
 
-      // Test actual extraction by making a real API call
-      const simpleInput = "Simple test project";
-      const userProfile = { role: 'junior', experience: 'beginner' };
+      mockMessagesCreate.mockResolvedValue(mockResponse);
 
-      const result = await client.analyzeCodebase(simpleInput, userProfile);
+      const result = await client.analyzeCodebase("Simple test project", { role: 'junior' });
       
       // The fact that we can parse it means extraction worked
       const parsed = JSON.parse(result);
       expect(typeof parsed).toBe('object');
+      expect(parsed.projectAnalysis).toBe('Simple test project');
       
-      console.log('✅ VERIFIED: JSON extraction from real API response');
+      console.log('✅ VERIFIED: JSON extraction from code blocks');
+    });
+
+    it('should extract JSON without code block markers', async () => {
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: `{"projectAnalysis": "Direct JSON", "recommendedAgents": [], "recommendedCommands": [], "claudeRules": {}}`
+        }]
+      };
+
+      mockMessagesCreate.mockResolvedValue(mockResponse);
+
+      const result = await client.analyzeCodebase("test", {});
+      const parsed = JSON.parse(result);
+      expect(parsed.projectAnalysis).toBe('Direct JSON');
       
-    }, 30000);
+      console.log('✅ VERIFIED: JSON extraction without code blocks');
+    });
+
+    it('should handle nested JSON objects', async () => {
+      const mockResponse = {
+        content: [{
+          type: 'text',
+          text: `\`\`\`
+{
+  "projectAnalysis": "Complex project",
+  "claudeRules": {
+    "codingStandards": ["Standard 1", "Standard 2"],
+    "nested": {
+      "deep": "value"
+    }
+  },
+  "recommendedAgents": [],
+  "recommendedCommands": []
+}
+\`\`\``
+        }]
+      };
+
+      mockMessagesCreate.mockResolvedValue(mockResponse);
+
+      const result = await client.analyzeCodebase("test", {});
+      const parsed = JSON.parse(result);
+      expect(parsed.claudeRules.nested.deep).toBe('value');
+      
+      console.log('✅ VERIFIED: Nested JSON object extraction');
+    });
   });
 });
