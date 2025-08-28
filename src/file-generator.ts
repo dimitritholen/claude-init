@@ -5,6 +5,7 @@ import { existsSync } from 'fs';
 export interface GeneratedFiles {
   agents: Array<{ name: string; content: string; path: string }>;
   commands: Array<{ name: string; content: string; path: string }>;
+  hooks: { content: string; path: string };
   claudeMd: { content: string; path: string };
 }
 
@@ -17,29 +18,35 @@ export class FileGenerator {
   }
 
   private generateAgentFile(agent: any): string {
-    return `# ${agent.name}
+    const yamlHeader = `---
+name: ${agent.name}
+description: ${agent.description}
+tools: ${agent.tools ? agent.tools.join(', ') : 'Read, Write, Edit, Bash'}
+---
 
-${agent.purpose}
-
-## System Prompt
-
-${agent.systemPrompt}
-
-## Usage
-
-This agent is automatically activated when working on tasks that match its expertise area.
 `;
+    
+    return yamlHeader + agent.systemPrompt;
   }
 
   private generateCommandFile(command: any): string {
-    return `# ${command.name}
-
-${command.description}
-
-## Prompt
-
-${command.prompt}
+    let yamlHeader = `---
 `;
+    if (command.allowedTools && command.allowedTools.length > 0) {
+      yamlHeader += `allowed-tools: ${command.allowedTools.join(', ')}
+`;
+    }
+    if (command.argumentHint) {
+      yamlHeader += `argument-hint: ${command.argumentHint}
+`;
+    }
+    yamlHeader += `description: ${command.description}
+`;
+    yamlHeader += `---
+
+`;
+    
+    return yamlHeader + command.prompt;
   }
 
   private generateClaudeMd(recommendations: any, userProfile: any): string {
@@ -77,6 +84,36 @@ ${claudeRules.simplicityGuardrails.map((rule: string) => `- ${rule}`).join('\n')
     return content;
   }
 
+  private generateHooksConfig(recommendedHooks: any): any {
+    const hooksConfig: any = { hooks: {} };
+    
+    // Process different hook types
+    for (const [hookType, hooks] of Object.entries(recommendedHooks)) {
+      if (Array.isArray(hooks) && hooks.length > 0) {
+        hooksConfig.hooks[hookType] = hooks.map((hook: any) => {
+          if (hookType === 'PostToolUse' && hook.matcher) {
+            return {
+              matcher: hook.matcher,
+              hooks: [{
+                type: 'command',
+                command: hook.command
+              }]
+            };
+          } else {
+            return {
+              hooks: [{
+                type: 'command', 
+                command: hook.command
+              }]
+            };
+          }
+        });
+      }
+    }
+    
+    return hooksConfig;
+  }
+
   async generate(
     projectPath: string,
     recommendations: any,
@@ -93,6 +130,7 @@ ${claudeRules.simplicityGuardrails.map((rule: string) => `- ${rule}`).join('\n')
     const generatedFiles: GeneratedFiles = {
       agents: [],
       commands: [],
+      hooks: { content: '', path: '' },
       claudeMd: { content: '', path: '' }
     };
 
@@ -148,6 +186,21 @@ ${claudeMdContent}`;
       content: claudeMdContent,
       path: claudeMdPath
     };
+
+    // Generate hooks configuration
+    if (recommendations.recommendedHooks) {
+      const hooksConfig = this.generateHooksConfig(recommendations.recommendedHooks);
+      const hooksDir = join(claudeDir, 'hooks');
+      const hooksConfigPath = join(hooksDir, 'config.json');
+      
+      await mkdir(hooksDir, { recursive: true });
+      await writeFile(hooksConfigPath, JSON.stringify(hooksConfig, null, 2), 'utf-8');
+      
+      generatedFiles.hooks = {
+        content: JSON.stringify(hooksConfig, null, 2),
+        path: hooksConfigPath
+      };
+    }
 
     return generatedFiles;
   }

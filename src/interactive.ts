@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { ModelType, ClaudeClient } from './claude-client';
 
 export interface UserProfile {
   role: 'frontend' | 'backend' | 'fullstack' | 'devops';
@@ -10,9 +11,70 @@ export interface UserProfile {
   projectType: 'new' | 'existing' | 'update';
   projectPath?: string;
   projectIdea?: string;
+  apiKey: string;
+  modelType: ModelType;
+}
+
+async function getApiKey(): Promise<string> {
+  const existingKey = process.env.ANTHROPIC_API_KEY;
+  
+  if (existingKey) {
+    console.log(chalk.green('✓ Found API key in environment'));
+    return existingKey;
+  }
+
+  console.log(chalk.yellow('⚠️  No API key found in environment'));
+  const { apiKey } = await inquirer.prompt([
+    {
+      type: 'password',
+      name: 'apiKey',
+      message: '🔑 Enter your Anthropic API key:',
+      mask: '*',
+      validate: (input: string) => {
+        if (!input.trim()) {
+          return 'API key is required';
+        }
+        if (!input.startsWith('sk-ant-')) {
+          return 'Invalid API key format. Should start with "sk-ant-"';
+        }
+        return true;
+      }
+    }
+  ]);
+
+  return apiKey;
 }
 
 export async function startInteractiveSetup(): Promise<UserProfile> {
+  console.log(chalk.gray('💡 Press Q at any time to quit\n'));
+
+  // Get and validate API key
+  const apiKey = await getApiKey();
+  
+  const { modelType } = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'modelType',
+      message: '🤖 Which Claude model would you like to use?',
+      choices: [
+        { name: '⚡ Sonnet 4 (Fast, efficient)', value: 'sonnet' },
+        { name: '🧠 Opus 4 (Advanced reasoning)', value: 'opus' }
+      ]
+    }
+  ]);
+
+  // Validate API key
+  const spinner = ora('🔐 Validating API key...').start();
+  const client = new ClaudeClient(apiKey, modelType);
+  const isValid = await client.validateApiKey();
+  
+  if (!isValid) {
+    spinner.fail('❌ Invalid API key');
+    console.log(chalk.red('Please check your API key and try again.'));
+    process.exit(1);
+  }
+  
+  spinner.succeed('✅ API key validated!');
   const answers = await inquirer.prompt([
     {
       type: 'list',
@@ -115,7 +177,9 @@ export async function startInteractiveSetup(): Promise<UserProfile> {
     ...answers,
     ...profileAnswers,
     projectPath,
-    projectIdea
+    projectIdea,
+    apiKey,
+    modelType
   };
 
   console.log('\n' + chalk.green('✅ Profile complete! Generating your personalized Claude setup...'));

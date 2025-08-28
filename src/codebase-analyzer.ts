@@ -2,18 +2,18 @@ import { readdir, readFile, stat } from 'fs/promises';
 import { join, extname, basename } from 'path';
 
 export interface CodebaseInfo {
-  packageJson?: any;
-  framework: string;
-  languages: string[];
-  testingFrameworks: string[];
-  dependencies: string[];
-  devDependencies: string[];
-  scripts: string[];
   fileStructure: string[];
-  complexity: 'simple' | 'medium' | 'complex';
-  hasDocker: boolean;
-  hasCI: boolean;
-  hasTests: boolean;
+  fileExtensions: string[];
+  configFiles: string[];
+  dependencies: { [key: string]: string };
+  devDependencies: { [key: string]: string };
+  scripts: { [key: string]: string };
+  packageJsons: any[];
+  rootConfigFiles: string[];
+  totalFiles: number;
+  maxDepthReached: number;
+  specialDirectories: string[];
+  buildFiles: string[];
 }
 
 export class CodebaseAnalyzer {
@@ -42,7 +42,15 @@ export class CodebaseAnalyzer {
       const structure: string[] = [];
       
       for (const item of items) {
-        if (item.startsWith('.') && !['src', 'lib', 'app', 'pages', 'components'].includes(item)) continue;
+        // Skip common build/cache directories but include important dot files
+        if (item === 'node_modules' || item === '.git' || item === 'dist' || item === 'build' || 
+            item === 'target' || item === '__pycache__' || item === '.pytest_cache' ||
+            item === '.next' || item === '.nuxt' || item === 'coverage') continue;
+        
+        // Include important hidden directories
+        if (item.startsWith('.') && ![
+          '.github', '.gitlab', '.vscode', '.idea', '.env', '.docker', '.k8s', '.aws', '.azure'
+        ].some(important => item.startsWith(important))) continue;
         
         const itemPath = join(dirPath, item);
         const stats = await stat(itemPath);
@@ -64,168 +72,211 @@ export class CodebaseAnalyzer {
     }
   }
 
-  private detectFramework(packageJson: any, fileStructure: string[]): string {
-    const deps = { ...packageJson?.dependencies, ...packageJson?.devDependencies };
-    
-    // React frameworks
-    if (deps.next) return 'Next.js';
-    if (deps.gatsby) return 'Gatsby';
-    if (deps.react) return 'React';
-    
-    // Vue frameworks
-    if (deps.nuxt) return 'Nuxt.js';
-    if (deps.vue) return 'Vue.js';
-    
-    // Angular
-    if (deps['@angular/core']) return 'Angular';
-    
-    // Backend frameworks
-    if (deps.express) return 'Express.js';
-    if (deps.fastify) return 'Fastify';
-    if (deps.nestjs) return 'NestJS';
-    if (deps.koa) return 'Koa';
-    
-    // Python frameworks (check file structure)
-    if (fileStructure.some(f => f.includes('requirements.txt') || f.includes('pyproject.toml'))) {
-      if (fileStructure.some(f => f.includes('manage.py'))) return 'Django';
-      if (fileStructure.some(f => f.includes('app.py') || f.includes('main.py'))) return 'Flask/FastAPI';
-    }
-    
-    // Other indicators
-    if (packageJson?.scripts?.dev || packageJson?.scripts?.start) return 'Node.js';
-    
-    return 'Unknown';
-  }
-
-  private detectLanguages(fileStructure: string[]): string[] {
-    const languages = new Set<string>();
-    
+  private getFileExtensions(fileStructure: string[]): string[] {
+    const extensions = new Set<string>();
     for (const file of fileStructure) {
       const ext = extname(file.toLowerCase());
-      switch (ext) {
-        case '.ts':
-        case '.tsx':
-          languages.add('TypeScript');
-          break;
-        case '.js':
-        case '.jsx':
-          languages.add('JavaScript');
-          break;
-        case '.py':
-          languages.add('Python');
-          break;
-        case '.go':
-          languages.add('Go');
-          break;
-        case '.rs':
-          languages.add('Rust');
-          break;
-        case '.java':
-          languages.add('Java');
-          break;
-        case '.php':
-          languages.add('PHP');
-          break;
-        case '.rb':
-          languages.add('Ruby');
-          break;
-      }
+      if (ext) extensions.add(ext);
     }
-    
-    return Array.from(languages);
+    return Array.from(extensions).sort();
   }
 
-  private detectTestingFrameworks(packageJson: any): string[] {
-    const deps = { ...packageJson?.dependencies, ...packageJson?.devDependencies };
-    const frameworks: string[] = [];
+  private getConfigFiles(fileStructure: string[]): string[] {
+    const configPatterns = [
+      // Web configs
+      'package.json', 'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+      'webpack.config.js', 'vite.config.js', 'rollup.config.js',
+      'next.config.js', 'nuxt.config.js', 'vue.config.js',
+      'tsconfig.json', 'jsconfig.json', 'babel.config.js', '.babelrc',
+      'eslint.config.js', '.eslintrc', '.prettierrc', 'tailwind.config.js',
+      
+      // Python configs
+      'requirements.txt', 'pyproject.toml', 'setup.py', 'setup.cfg',
+      'Pipfile', 'poetry.lock', 'conda.yml', 'environment.yml',
+      'manage.py', 'wsgi.py', 'asgi.py', 'settings.py',
+      
+      // Go configs
+      'go.mod', 'go.sum', 'Gopkg.toml', 'Gopkg.lock',
+      
+      // Rust configs
+      'Cargo.toml', 'Cargo.lock',
+      
+      // Java configs
+      'pom.xml', 'build.gradle', 'gradle.properties', 'gradlew',
+      'mvnw', 'settings.gradle', 'build.xml',
+      
+      // Infrastructure
+      'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
+      'k8s.yml', 'kubernetes.yml', '.dockerignore',
+      'terraform.tf', '*.terraform', 'Vagrantfile',
+      
+      // CI/CD
+      '.github', '.gitlab-ci.yml', '.travis.yml', 'Jenkinsfile',
+      'azure-pipelines.yml', '.circleci', 'buildkite.yml',
+      
+      // Other
+      'Makefile', 'CMakeLists.txt', 'configure', 'autogen.sh',
+      '.env', '.env.example', '.env.local', '.gitignore', '.gitattributes'
+    ];
     
-    if (deps.jest) frameworks.push('Jest');
-    if (deps.vitest) frameworks.push('Vitest');
-    if (deps.mocha) frameworks.push('Mocha');
-    if (deps.cypress) frameworks.push('Cypress');
-    if (deps.playwright) frameworks.push('Playwright');
-    if (deps['@testing-library/react']) frameworks.push('Testing Library');
-    if (deps.pytest) frameworks.push('Pytest');
-    
-    return frameworks;
+    return fileStructure.filter(file => 
+      configPatterns.some(pattern => 
+        file.toLowerCase().includes(pattern.toLowerCase()) ||
+        file.endsWith(pattern) ||
+        basename(file.toLowerCase()) === pattern.toLowerCase()
+      )
+    );
   }
 
-  private calculateComplexity(fileStructure: string[], packageJson: any): 'simple' | 'medium' | 'complex' {
-    const totalFiles = fileStructure.length;
-    const deps = Object.keys({ ...packageJson?.dependencies, ...packageJson?.devDependencies }).length;
+  private getSpecialDirectories(fileStructure: string[]): string[] {
+    const specialDirs = [
+      'src/', 'lib/', 'app/', 'components/', 'pages/', 'public/', 'static/',
+      'assets/', 'styles/', 'css/', 'scss/', 'less/', 'images/', 'img/',
+      'test/', 'tests/', '__tests__/', 'spec/', '__specs__/', 'e2e/',
+      'docs/', 'documentation/', 'examples/', 'demo/', 'samples/',
+      'config/', 'configs/', 'settings/', 'env/', 'environments/',
+      'build/', 'dist/', 'out/', 'target/', 'bin/', 'obj/', 'release/',
+      'node_modules/', 'vendor/', 'packages/', 'deps/', 'third_party/',
+      'migrations/', 'seeds/', 'fixtures/', 'data/', 'db/', 'database/',
+      'server/', 'client/', 'frontend/', 'backend/', 'api/', 'services/',
+      'models/', 'views/', 'controllers/', 'middleware/', 'routes/',
+      'utils/', 'helpers/', 'shared/', 'common/', 'core/', 'base/',
+      'types/', 'interfaces/', 'constants/', 'enums/', 'hooks/',
+      'context/', 'providers/', 'store/', 'state/', 'reducers/', 'actions/'
+    ];
     
-    // Simple indicators
-    if (totalFiles < 20 && deps < 15) return 'simple';
+    return fileStructure.filter(item => 
+      item.endsWith('/') && specialDirs.includes(item)
+    );
+  }
+
+  private getBuildFiles(fileStructure: string[]): string[] {
+    const buildPatterns = [
+      'Makefile', 'makefile', 'GNUmakefile',
+      'build.sh', 'build.bat', 'build.ps1', 'build.py',
+      'gulpfile.js', 'gruntfile.js', 'webpack.config.js',
+      'rollup.config.js', 'vite.config.js', 'esbuild.config.js',
+      'turbo.json', 'nx.json', 'lerna.json', 'rush.json',
+      'CMakeLists.txt', 'configure', 'configure.ac', 'autogen.sh',
+      'sbt', 'build.sbt', 'project/', 'target/'
+    ];
     
-    // Complex indicators
-    if (totalFiles > 100 || deps > 50) return 'complex';
-    if (fileStructure.some(f => f.includes('microservices') || f.includes('services/'))) return 'complex';
-    if (fileStructure.some(f => f.includes('docker-compose') || f.includes('k8s'))) return 'complex';
-    
-    return 'medium';
+    return fileStructure.filter(file => 
+      buildPatterns.some(pattern => 
+        file.toLowerCase().includes(pattern.toLowerCase()) ||
+        basename(file.toLowerCase()) === pattern.toLowerCase()
+      )
+    );
   }
 
   async analyze(projectPath: string): Promise<CodebaseInfo> {
-    const fileStructure = await this.getFileStructure(projectPath);
+    const fileStructure = await this.getFileStructure(projectPath, 3); // Deeper scan
     
-    // Read package.json if exists
-    const packageJsonContent = await this.readFileIfExists(join(projectPath, 'package.json'));
-    const packageJson = packageJsonContent ? JSON.parse(packageJsonContent) : null;
+    // Collect all package.json files (for monorepos)
+    const packageJsons: any[] = [];
+    const mainPackageJson = await this.readFileIfExists(join(projectPath, 'package.json'));
+    if (mainPackageJson) {
+      packageJsons.push({ path: 'package.json', content: JSON.parse(mainPackageJson) });
+    }
     
-    const framework = this.detectFramework(packageJson, fileStructure);
-    const languages = this.detectLanguages(fileStructure);
-    const testingFrameworks = this.detectTestingFrameworks(packageJson);
-    const complexity = this.calculateComplexity(fileStructure, packageJson);
+    // Look for other package.json files in subdirectories
+    for (const file of fileStructure) {
+      if (file.includes('package.json') && file !== 'package.json') {
+        const content = await this.readFileIfExists(join(projectPath, file.replace(/\s+/g, '')));
+        if (content) {
+          try {
+            packageJsons.push({ path: file, content: JSON.parse(content) });
+          } catch {
+            // Invalid JSON, skip
+          }
+        }
+      }
+    }
     
-    const hasDocker = await this.fileExists(join(projectPath, 'Dockerfile')) || 
-                      await this.fileExists(join(projectPath, 'docker-compose.yml'));
+    const mainPkg = packageJsons.find(p => p.path === 'package.json')?.content;
     
-    const hasCI = await this.fileExists(join(projectPath, '.github/workflows')) ||
-                  await this.fileExists(join(projectPath, '.gitlab-ci.yml')) ||
-                  await this.fileExists(join(projectPath, '.travis.yml'));
-    
-    const hasTests = fileStructure.some(f => 
-      f.includes('test') || f.includes('spec') || f.includes('__tests__')
-    );
-
     return {
-      packageJson,
-      framework,
-      languages,
-      testingFrameworks,
-      dependencies: Object.keys(packageJson?.dependencies || {}),
-      devDependencies: Object.keys(packageJson?.devDependencies || {}),
-      scripts: Object.keys(packageJson?.scripts || {}),
       fileStructure,
-      complexity,
-      hasDocker,
-      hasCI,
-      hasTests
+      fileExtensions: this.getFileExtensions(fileStructure),
+      configFiles: this.getConfigFiles(fileStructure),
+      dependencies: mainPkg?.dependencies || {},
+      devDependencies: mainPkg?.devDependencies || {},
+      scripts: mainPkg?.scripts || {},
+      packageJsons,
+      rootConfigFiles: await this.getRootConfigFiles(projectPath),
+      totalFiles: fileStructure.length,
+      maxDepthReached: 3,
+      specialDirectories: this.getSpecialDirectories(fileStructure),
+      buildFiles: this.getBuildFiles(fileStructure)
     };
   }
 
+  private async getRootConfigFiles(projectPath: string): Promise<string[]> {
+    const commonConfigFiles = [
+      '.gitignore', '.gitattributes', '.editorconfig', '.npmrc', '.nvmrc',
+      'README.md', 'LICENSE', 'CHANGELOG.md', 'CONTRIBUTING.md',
+      '.env', '.env.example', '.env.local', '.env.production',
+      'docker-compose.yml', 'Dockerfile', '.dockerignore',
+      'Makefile', 'makefile', 'justfile'
+    ];
+    
+    const existingFiles = [];
+    for (const file of commonConfigFiles) {
+      if (await this.fileExists(join(projectPath, file))) {
+        existingFiles.push(file);
+      }
+    }
+    
+    return existingFiles;
+  }
+  
   formatForLLM(analysis: CodebaseInfo): string {
+    const deps = Object.keys(analysis.dependencies);
+    const devDeps = Object.keys(analysis.devDependencies);
+    const scripts = Object.keys(analysis.scripts);
+    
     return `
-CODEBASE ANALYSIS:
-- Framework: ${analysis.framework}
-- Languages: ${analysis.languages.join(', ')}
-- Complexity: ${analysis.complexity}
-- Testing Frameworks: ${analysis.testingFrameworks.join(', ') || 'None detected'}
-- Has Docker: ${analysis.hasDocker}
-- Has CI/CD: ${analysis.hasCI}
-- Has Tests: ${analysis.hasTests}
+<codebase_data>
+<file_structure total_files="${analysis.totalFiles}">
+${analysis.fileStructure.slice(0, 50).join('\n')}${analysis.fileStructure.length > 50 ? '\n... and ' + (analysis.fileStructure.length - 50) + ' more files' : ''}
+</file_structure>
 
-DEPENDENCIES (${analysis.dependencies.length}):
-${analysis.dependencies.slice(0, 15).join(', ')}${analysis.dependencies.length > 15 ? '...' : ''}
+<file_extensions>
+${analysis.fileExtensions.join(', ')}
+</file_extensions>
 
-DEV DEPENDENCIES (${analysis.devDependencies.length}):
-${analysis.devDependencies.slice(0, 15).join(', ')}${analysis.devDependencies.length > 15 ? '...' : ''}
+<special_directories>
+${analysis.specialDirectories.join('\n')}
+</special_directories>
 
-NPM SCRIPTS:
-${analysis.scripts.join(', ')}
+<config_files>
+${analysis.configFiles.join('\n')}
+</config_files>
 
-FILE STRUCTURE (top-level):
-${analysis.fileStructure.slice(0, 30).join('\n')}${analysis.fileStructure.length > 30 ? '\n...' : ''}
+<root_config_files>
+${analysis.rootConfigFiles.join('\n')}
+</root_config_files>
+
+<build_files>
+${analysis.buildFiles.join('\n')}
+</build_files>
+
+<dependencies count="${deps.length}">
+${deps.slice(0, 20).join(', ')}${deps.length > 20 ? '\n... and ' + (deps.length - 20) + ' more' : ''}
+</dependencies>
+
+<dev_dependencies count="${devDeps.length}">
+${devDeps.slice(0, 20).join(', ')}${devDeps.length > 20 ? '\n... and ' + (devDeps.length - 20) + ' more' : ''}
+</dev_dependencies>
+
+<npm_scripts>
+${scripts.map(s => `${s}: ${analysis.scripts[s]}`).join('\n')}
+</npm_scripts>
+
+<package_json_files>
+${analysis.packageJsons.map(p => p.path).join('\n')}
+</package_json_files>
+</codebase_data>
     `.trim();
   }
 }
